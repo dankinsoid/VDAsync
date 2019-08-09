@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 s.name             = 'VDAsync'
-s.version          = '0.1.0'
+s.version          = '0.2.0'
 s.summary          = 'A short description of VDAsync.'
 
 s.description      = <<-DESC
@@ -18,4 +18,15 @@ s.swift_versions = '5.0'
 s.source_files = 'Sources/VDAsync/**/*'
 
 s.dependency 'UnwrapOperator', '~> 0.1.0'
+
+s.default_subspec = 'Lite'
+
+s.subspec 'Lite' do |lite|
+end
+
+s.subspec 'RxSwift' do |rx|
+    rx.dependency	'RxSwift', '~> 5'
+    rx.source_files = 'Sources/**/*'
+end
+
 end
