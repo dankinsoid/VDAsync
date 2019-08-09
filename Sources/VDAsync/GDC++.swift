@@ -27,7 +27,7 @@ extension DispatchQueue {
 
 extension DispatchQueue {
     
-    func sync<T>(_ block: () -> T) -> T {
+    public func sync<T>(_ block: () -> T) -> T {
         var result: T?
         self.sync {
             result = block()
@@ -35,7 +35,7 @@ extension DispatchQueue {
         return result!
     }
     
-    func asyncBlock<T>(_ block: @escaping (T) -> ()) -> (T) -> () {
+    public func asyncBlock<T>(_ block: @escaping (T) -> ()) -> (T) -> () {
         return { data in
             self.async {
                 block(data)
@@ -43,7 +43,7 @@ extension DispatchQueue {
         }
     }
     
-    func asyncBlock(_ block: @escaping () -> ()) -> () -> () {
+    public func asyncBlock(_ block: @escaping () -> ()) -> () -> () {
         return {
             self.async {
                 block()

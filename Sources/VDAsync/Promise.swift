@@ -162,8 +162,8 @@ public final class PromiseTry<T> {
         Async.execute {
             let result = try self.await()
             completion(result)
-            }.catch { error in
-                handler.block?(error)
+        }.catch { error in
+            handler.block?(error)
         }
         return handler
     }
