@@ -23,6 +23,8 @@ fileprivate final class Semaphore {
 public final class PromiseBuilder<T> {
     public let promise = Promise<T>()
     
+    public init() {}
+    
     public func put(_ value: T) {
         promise.promise.put(value)
     }
@@ -31,6 +33,8 @@ public final class PromiseBuilder<T> {
 
 public final class PromiseTryBuilder<T> {
     public let promise = PromiseTry<T>()
+    
+    public init() {}
     
     public func put(_ value: T) {
         promise.promise.put(.success(value))
