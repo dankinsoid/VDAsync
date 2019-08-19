@@ -20,6 +20,36 @@ fileprivate final class Semaphore {
     
 }
 
+public final class PromiseBuilder<T> {
+    public let promise = Promise<T>()
+    
+    public func put(_ value: T) {
+        promise.put(value)
+    }
+    
+}
+
+public final class PromiseTryBuilder<T> {
+    public let promise = PromiseTry<T>()
+    
+    public func put(_ value: T) {
+        promise.put(.success(value))
+    }
+    
+    public func `throw`(_ value: Error) {
+        promise.put(.failure(value))
+    }
+    
+    public func put(_ value: Result<T, Error>) {
+        promise.put(value)
+    }
+    
+    public func put<E: Error>(_ value: Result<T, E>) {
+        promise.put(value.mapError({ $0 as Error }))
+    }
+    
+}
+
 fileprivate final class AnyPromise<T> {
     private var value: T?
     private let semaphore = Semaphore()
@@ -113,7 +143,7 @@ public final class Promise<T> {
         promise = AnyPromise(block)
     }
     
-    public init() {
+    init() {
         promise = AnyPromise()
     }
     
@@ -146,7 +176,7 @@ public final class Promise<T> {
         promise.async(on: queue, { block($0!) })
     }
     
-    public func put(_ value: T) {
+    func put(_ value: T) {
         promise.put(value)
     }
     
@@ -213,20 +243,8 @@ public final class PromiseTry<T> {
         return try promise.await()~!.get()
     }
     
-    public func put(_ value: T) {
-        promise.put(.success(value))
-    }
-    
-    public func `throw`(_ value: Error) {
-        promise.put(.failure(value))
-    }
-    
-    public func put(_ value: Result<T, Error>) {
+    func put(_ value: Result<T, Error>) {
         promise.put(value)
-    }
-    
-    public func put<E: Error>(_ value: Result<T, E>) {
-        promise.put(value.mapError({ $0 as Error }))
     }
     
     @discardableResult
