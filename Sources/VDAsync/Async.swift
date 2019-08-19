@@ -19,11 +19,11 @@ public enum Async {
     }
     
     public static func promise<T, E: Error>(_ block: (@escaping (Result<T,  E>) -> ()) -> ()) -> PromiseTry<T> {
-        let promise = PromiseTry<T>()
+        let promise = PromiseTryBuilder<T>()
         block {
             promise.put($0)
         }
-        return promise
+        return promise.promise
     }
     
     public static func promise<T, E: Error, A>(_ block: (A, @escaping (Result<T,  E>) -> ()) -> (), _ value: A) -> PromiseTry<T> {
@@ -31,15 +31,15 @@ public enum Async {
     }
     
     public static func promise<T>(_ block: (@escaping (T) -> ()) -> ()) -> Promise<T> {
-        let promise = Promise<T>()
+        let promise = PromiseBuilder<T>()
         block {
             promise.put($0)
         }
-        return promise
+        return promise.promise
     }
     
     public static func promise<T>(_ block: (@escaping (T?, Error?) -> ()) -> ()) -> PromiseTry<T> {
-        let promise = PromiseTry<T>()
+        let promise = PromiseTryBuilder<T>()
         block {
             if let result = $0 {
                 promise.put(result)
@@ -49,11 +49,11 @@ public enum Async {
                 promise.throw(Async.Errors.noElements)
             }
         }
-        return promise
+        return promise.promise
     }
     
     public static func promise(_ block: (@escaping (Error?) -> ()) -> ()) -> PromiseTry<Void> {
-        let promise = PromiseTry<Void>()
+        let promise = PromiseTryBuilder<Void>()
         block {
             if let error = $0 {
                 promise.throw(error)
@@ -61,7 +61,7 @@ public enum Async {
                 promise.put(())
             }
         }
-        return promise
+        return promise.promise
     }
     
     public static func promise<A>(_ block: (A, @escaping (Error?) -> ()) -> (), _ first: A) -> PromiseTry<Void> {

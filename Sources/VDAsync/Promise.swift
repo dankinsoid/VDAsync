@@ -24,7 +24,7 @@ public final class PromiseBuilder<T> {
     public let promise = Promise<T>()
     
     public func put(_ value: T) {
-        promise.put(value)
+        promise.promise.put(value)
     }
     
 }
@@ -33,19 +33,19 @@ public final class PromiseTryBuilder<T> {
     public let promise = PromiseTry<T>()
     
     public func put(_ value: T) {
-        promise.put(.success(value))
+        promise.promise.put(.success(value))
     }
     
     public func `throw`(_ value: Error) {
-        promise.put(.failure(value))
+        promise.promise.put(.failure(value))
     }
     
     public func put(_ value: Result<T, Error>) {
-        promise.put(value)
+        promise.promise.put(value)
     }
     
     public func put<E: Error>(_ value: Result<T, E>) {
-        promise.put(value.mapError({ $0 as Error }))
+        promise.promise.put(value.mapError({ $0 as Error }))
     }
     
 }
@@ -63,7 +63,7 @@ fileprivate final class AnyPromise<T> {
         queue = DispatchQueue.global(qos: .utility)
     }
     
-    init(on queue: DispatchQueue) {
+    private init(on queue: DispatchQueue) {
         self.queue = queue
         block = nil
     }
@@ -71,6 +71,11 @@ fileprivate final class AnyPromise<T> {
     init() {
         queue = DispatchQueue.global(qos: .utility)
         block = nil
+    }
+    
+    convenience init(_ value: T) {
+        self.init()
+        put(value)
     }
     
     func run(_ completion: ((T?) -> ())?) -> Bool {
@@ -86,7 +91,7 @@ fileprivate final class AnyPromise<T> {
         return true
     }
     
-    func put(_ value: T?) {
+    fileprivate func put(_ value: T?) {
         lock.lock()
         isRunned = true
         self.value = value
@@ -137,14 +142,14 @@ fileprivate final class AnyPromise<T> {
 }
 
 public final class Promise<T> {
-    private let promise: AnyPromise<T>
+    fileprivate let promise: AnyPromise<T>
     
     public init(_ block: @escaping () -> T) {
         promise = AnyPromise(block)
     }
     
-    init() {
-        promise = AnyPromise()
+    fileprivate convenience init() {
+        self.init(AnyPromise<T>())
     }
     
     fileprivate init(_ any: AnyPromise<T>) {
@@ -152,8 +157,7 @@ public final class Promise<T> {
     }
     
     public init(_ value: T) {
-        promise = AnyPromise()
-        put(value)
+        promise = AnyPromise(value)
     }
     
     @discardableResult
@@ -176,10 +180,6 @@ public final class Promise<T> {
         promise.async(on: queue, { block($0!) })
     }
     
-    func put(_ value: T) {
-        promise.put(value)
-    }
-    
     public func map<R>(_ transform: @escaping (T) -> R) -> Promise<R> {
         return Promise<R>(promise.map(transform))
     }
@@ -198,7 +198,7 @@ public final class Promise<T> {
 }
 
 public final class PromiseTry<T> {
-    private let promise: AnyPromise<Result<T, Error>>
+    fileprivate let promise: AnyPromise<Result<T, Error>>
     
     public static func value(_ value: T) -> PromiseTry<T> {
         return PromiseTry(value)
@@ -209,24 +209,26 @@ public final class PromiseTry<T> {
     }
     
     public convenience init(_ block: @escaping () throws -> T) {
-        let promise = AnyPromise {
+        let promise = AnyPromise<Result<T, Error>> {
             return Result(catching: block)
         }
         self.init(promise)
     }
     
+    fileprivate convenience init() {
+        self.init(AnyPromise<Result<T, Error>>())
+    }
+    
     public convenience init(_ value: T) {
-        self.init()
-        put(.success(value))
+        self.init(AnyPromise(.success(value)))
+    }
+    
+    public convenience init(_ result: Result<T, Error>) {
+        self.init(AnyPromise(result))
     }
     
     public convenience init(error: Error) {
-        self.init()
-        put(.failure(error))
-    }
-    
-    public convenience init() {
-        self.init(AnyPromise())
+        self.init(AnyPromise(.failure(error)))
     }
     
     fileprivate init(_ promise: AnyPromise<Result<T, Error>>) {
@@ -241,10 +243,6 @@ public final class PromiseTry<T> {
     
     public func await() throws -> T {
         return try promise.await()~!.get()
-    }
-    
-    func put(_ value: Result<T, Error>) {
-        promise.put(value)
     }
     
     @discardableResult
