@@ -22,32 +22,20 @@ fileprivate final class Semaphore {
 
 fileprivate final class AnyPromise<T> {
     private var value: T?
-    private let semaphore: Semaphore
-    private let lock: NSLock
+    private let semaphore = Semaphore()
+    private let lock = NSLock()
     
     init(_ block: @escaping () -> T) {
-        semaphore = Semaphore()
-        lock = NSLock()
+        
         Async.execute {
             let _value = block()
             self.put(_value)
         }
     }
     
-    init<R>(_ other: AnyPromise<R>, transform: (R) -> T) {
-        self.semaphore = other.semaphore
-        self.lock = other.lock
-        if let _value = other.value {
-            self.value = transform(_value)
-        }
-    }
+    init() { }
     
-    init() {
-        lock = NSLock()
-        semaphore = Semaphore()
-    }
-    
-    func put(_ value: T) {
+    func put(_ value: T?) {
         lock.lock()
         self.value = value
         semaphore.reset()
@@ -62,18 +50,26 @@ fileprivate final class AnyPromise<T> {
         return value
     }
     
-    public func map<R>(_ transform: (T) -> R) -> AnyPromise<R> {
-        return AnyPromise<R>(self, transform: transform)
+    public func map<R>(_ transform: @escaping (T) -> R) -> AnyPromise<R> {
+        let result = AnyPromise<R>()
+        Async.execute {
+            if let value = self.await() {
+                result.put(transform(value))
+            }
+            result.put(nil)
+        }
+        return result
     }
     
-    public func map<R>(_ transform: (T) throws -> R) -> AnyPromise<Result<R, Error>> {
-        return AnyPromise<Result<R, Error>>(self, transform: {
-            do {
-                return try .success(transform($0))
-            } catch {
-                return .failure(error)
+    public func map<R>(_ transform: @escaping (T) throws -> R) -> AnyPromise<Result<R, Error>> {
+        let result = AnyPromise<Result<R, Error>>()
+        Async.execute {
+            if let value = self.await() {
+                result.put(Result(catching: { try transform(value) } ))
             }
-        })
+            result.put(nil)
+        }
+        return result
     }
 }
 
@@ -117,14 +113,21 @@ public final class Promise<T> {
         promise.put(value)
     }
     
-    public func map<R>(_ transform: (T) -> R) -> Promise<R> {
+    public func map<R>(_ transform: @escaping (T) -> R) -> Promise<R> {
         return Promise<R>(promise.map(transform))
     }
     
-    public func map<R>(_ transform: (T) throws -> R) -> PromiseTry<R> {
+    public func map<R>(_ transform: @escaping (T) throws -> R) -> PromiseTry<R> {
         return PromiseTry<R>(promise.map(transform))
     }
     
+    public func `do`(_ block: @escaping (T) -> ()) -> Promise<T> {
+        return Async.promise {
+            let result = self.await()
+            block(result)
+            return result
+        }
+    }
 }
 
 public final class PromiseTry<T> {
@@ -198,7 +201,7 @@ public final class PromiseTry<T> {
                 return value
             } catch {
                 onError?(error)
-                throw(error)
+                throw error
             }
         }
     }
@@ -221,7 +224,7 @@ public final class PromiseTry<T> {
         return async(on: .main, block)
     }
     
-    public func map<R>(_ transform: (T) throws -> R) -> PromiseTry<R> {
+    public func map<R>(_ transform: @escaping (T) throws -> R) -> PromiseTry<R> {
         return PromiseTry<R>(promise.map {
             switch $0 {
             case .success(let result):
