@@ -10,11 +10,11 @@ import Foundation
 public enum Async {
     
     @discardableResult
-    public static func execute(on queue: DispatchQueue = DispatchQueue.global(), _ block: @escaping () throws -> ()) -> Async.Catch {
+    public static func execute(on queue: DispatchQueue = DispatchQueue.global(qos: .utility), _ block: @escaping () throws -> ()) -> Async.Catch {
         return queue.async(block)
     }
     
-    public static func execute(on queue: DispatchQueue = DispatchQueue.global(), _ block: @escaping () -> ()) {
+    public static func execute(on queue: DispatchQueue = DispatchQueue.global(qos: .utility), _ block: @escaping () -> ()) {
         queue.async(execute: block)
     }
     

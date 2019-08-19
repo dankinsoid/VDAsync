@@ -24,19 +24,39 @@ fileprivate final class AnyPromise<T> {
     private var value: T?
     private let semaphore = Semaphore()
     private let lock = NSLock()
+    let queue: DispatchQueue
+    private let block: (() -> T)?
+    var isRunned = false
     
     init(_ block: @escaping () -> T) {
-        
-        Async.execute {
+        self.block = block
+        queue = DispatchQueue.global(qos: .utility)
+    }
+    
+    init(on queue: DispatchQueue) {
+        self.queue = queue
+        block = nil
+    }
+    
+    init() {
+        queue = DispatchQueue.global(qos: .utility)
+        block = nil
+    }
+    
+    func run() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isRunned, let block = self.block else { return }
+        isRunned = true
+        queue.async {
             let _value = block()
             self.put(_value)
         }
     }
     
-    init() { }
-    
     func put(_ value: T?) {
         lock.lock()
+        isRunned = true
         self.value = value
         semaphore.reset()
         lock.unlock()
@@ -46,13 +66,14 @@ fileprivate final class AnyPromise<T> {
         if let result = value {
             return result
         }
+        run()
         semaphore.wait()
         return value
     }
     
     public func map<R>(_ transform: @escaping (T) -> R) -> AnyPromise<R> {
-        let result = AnyPromise<R>()
-        Async.execute {
+        let result = AnyPromise<R>(on: queue)
+        queue.async {
             if let value = self.await() {
                 result.put(transform(value))
             }
@@ -62,8 +83,8 @@ fileprivate final class AnyPromise<T> {
     }
     
     public func map<R>(_ transform: @escaping (T) throws -> R) -> AnyPromise<Result<R, Error>> {
-        let result = AnyPromise<Result<R, Error>>()
-        Async.execute {
+        let result = AnyPromise<Result<R, Error>>(on: queue)
+        queue.async {
             if let value = self.await() {
                 result.put(Result(catching: { try transform(value) } ))
             }
@@ -91,6 +112,12 @@ public final class Promise<T> {
     public init(_ value: T) {
         promise = AnyPromise()
         put(value)
+    }
+    
+    @discardableResult
+    public func run() -> Promise {
+        promise.run()
+        return self
     }
     
     public func await() -> T {
@@ -164,6 +191,12 @@ public final class PromiseTry<T> {
     
     fileprivate init(_ promise: AnyPromise<Result<T, Error>>) {
         self.promise = promise
+    }
+    
+    @discardableResult
+    public func run() -> PromiseTry {
+        promise.run()
+        return self
     }
     
     public func await() throws -> T {
