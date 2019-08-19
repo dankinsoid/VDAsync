@@ -1,30 +1,56 @@
 import Foundation
 import UnwrapOperator
 
+fileprivate final class Semaphore {
+    private let semaphore = DispatchSemaphore(value: 0)
+    private var counter = 0
+    
+    func reset() {
+        guard counter > 0 else { return }
+        for _ in 0..<counter {
+            semaphore.signal()
+        }
+        counter = 0
+    }
+    
+    func wait() {
+        counter += 1
+        semaphore.wait()
+    }
+    
+}
+
 fileprivate final class AnyPromise<T> {
     private var value: T?
-    private let semaphore = DispatchSemaphore(value: 0)
-    private var semaphoreCount = 0
-    private let lock = NSLock()
+    private let semaphore: Semaphore
+    private let lock: NSLock
     
     init(_ block: @escaping () -> T) {
+        semaphore = Semaphore()
+        lock = NSLock()
         Async.execute {
             let _value = block()
             self.put(_value)
         }
     }
     
-    init() {}
+    init<R>(_ other: AnyPromise<R>, transform: (R) -> T) {
+        self.semaphore = other.semaphore
+        self.lock = other.lock
+        if let _value = other.value {
+            self.value = transform(_value)
+        }
+    }
+    
+    init() {
+        lock = NSLock()
+        semaphore = Semaphore()
+    }
     
     func put(_ value: T) {
         lock.lock()
         self.value = value
-        if semaphoreCount > 0 {
-            for _ in 0..<semaphoreCount {
-                semaphore.signal()
-            }
-        }
-        semaphoreCount = 0
+        semaphore.reset()
         lock.unlock()
     }
     
@@ -32,11 +58,23 @@ fileprivate final class AnyPromise<T> {
         if let result = value {
             return result
         }
-        semaphoreCount += 1
         semaphore.wait()
         return value
     }
     
+    public func map<R>(_ transform: (T) -> R) -> AnyPromise<R> {
+        return AnyPromise<R>(self, transform: transform)
+    }
+    
+    public func map<R>(_ transform: (T) throws -> R) -> AnyPromise<Result<R, Error>> {
+        return AnyPromise<Result<R, Error>>(self, transform: {
+            do {
+                return try .success(transform($0))
+            } catch {
+                return .failure(error)
+            }
+        })
+    }
 }
 
 public final class Promise<T> {
@@ -48,6 +86,10 @@ public final class Promise<T> {
     
     public init() {
         promise = AnyPromise()
+    }
+    
+    fileprivate init(_ any: AnyPromise<T>) {
+        promise = any
     }
     
     public init(_ value: T) {
@@ -65,20 +107,22 @@ public final class Promise<T> {
         }
     }
     
+    public func async(on queue: DispatchQueue, _ block: @escaping (T) -> ()) {
+        queue.async {
+            block(self.await())
+        }
+    }
+    
     public func put(_ value: T) {
         promise.put(value)
     }
     
-    public func map<R>(_ transform: @escaping (T) -> R) -> Promise<R> {
-        return Promise<R> {
-            return transform(self.await())
-        }
+    public func map<R>(_ transform: (T) -> R) -> Promise<R> {
+        return Promise<R>(promise.map(transform))
     }
     
-    public func map<R>(_ transform: @escaping (T) throws -> R) -> PromiseTry<R> {
-        return PromiseTry<R> {
-            return try transform(self.await())
-        }
+    public func map<R>(_ transform: (T) throws -> R) -> PromiseTry<R> {
+        return PromiseTry<R>(promise.map(transform))
     }
     
 }
@@ -94,24 +138,29 @@ public final class PromiseTry<T> {
         return PromiseTry(error: error)
     }
     
-    public init(_ block: @escaping () throws -> T) {
-        promise = AnyPromise {
+    public convenience init(_ block: @escaping () throws -> T) {
+        let promise = AnyPromise {
             return Result(catching: block)
         }
+        self.init(promise)
     }
     
-    public init(_ value: T) {
-        promise = AnyPromise()
+    public convenience init(_ value: T) {
+        self.init()
         put(.success(value))
     }
     
-    public init(error: Error) {
-        promise = AnyPromise()
+    public convenience init(error: Error) {
+        self.init()
         put(.failure(error))
     }
     
-    public init() {
-        promise = AnyPromise()
+    public convenience init() {
+        self.init(AnyPromise())
+    }
+    
+    fileprivate init(_ promise: AnyPromise<Result<T, Error>>) {
+        self.promise = promise
     }
     
     public func await() throws -> T {
@@ -154,11 +203,10 @@ public final class PromiseTry<T> {
         }
     }
     
-    @discardableResult
-    public func asyncOnMain(_ block: @escaping (T) throws -> ()) -> Async.Catch {
+    public func async(on queue: DispatchQueue,_ block: @escaping (T) throws -> ()) -> Async.Catch {
         let handler = Async.Catch()
-        handler.queue = DispatchQueue.main
-        let completion: (T) -> () = { v in DispatchQueue.main.async { try block(v) }.catch { e in handler.block?(e) } }
+        handler.queue = queue
+        let completion: (T) -> () = { v in queue.async { try block(v) }.catch { e in handler.block?(e) } }
         Async.execute {
             let result = try self.await()
             completion(result)
@@ -168,10 +216,29 @@ public final class PromiseTry<T> {
         return handler
     }
     
-    public func map<R>(_ transform: @escaping (T) throws -> R) -> PromiseTry<R> {
-        return PromiseTry<R> {
-            return try transform(self.await())
-        }
+    @discardableResult
+    public func asyncOnMain(_ block: @escaping (T) throws -> ()) -> Async.Catch {
+        return async(on: .main, block)
+    }
+    
+    public func map<R>(_ transform: (T) throws -> R) -> PromiseTry<R> {
+        return PromiseTry<R>(promise.map {
+            switch $0 {
+            case .success(let result):
+                return Result(catching: { try transform(result) })
+            case .failure(let error):
+                return .failure(error)
+            }
+        })
+    }
+    
+    public func `catch`(with value: T) -> Promise<T> {
+        return Promise<T>(promise.map {
+            switch $0 {
+            case .success(let value0): return value0
+            case .failure: return value
+            }
+        })
     }
     
 }
