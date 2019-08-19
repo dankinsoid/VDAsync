@@ -43,15 +43,17 @@ fileprivate final class AnyPromise<T> {
         block = nil
     }
     
-    func run() {
+    func run(_ completion: ((T?) -> ())?) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard !isRunned, let block = self.block else { return }
+        guard !isRunned, let block = self.block else { return false }
         isRunned = true
         queue.async {
             let _value = block()
             self.put(_value)
+            completion?(_value)
         }
+        return true
     }
     
     func put(_ value: T?) {
@@ -66,9 +68,19 @@ fileprivate final class AnyPromise<T> {
         if let result = value {
             return result
         }
-        run()
+        _ = run(nil)
         semaphore.wait()
         return value
+    }
+    
+    public func async(on queue: DispatchQueue,_ block: @escaping (T?) -> ()) {
+        if run(queue.asyncBlock { block($0) }) {
+            return
+        }
+        queue.async {
+            let result = self.await()
+            block(result)
+        }
     }
     
     public func map<R>(_ transform: @escaping (T) -> R) -> AnyPromise<R> {
@@ -116,7 +128,7 @@ public final class Promise<T> {
     
     @discardableResult
     public func run() -> Promise {
-        promise.run()
+        _ = promise.run(nil)
         return self
     }
     
@@ -131,9 +143,7 @@ public final class Promise<T> {
     }
     
     public func async(on queue: DispatchQueue, _ block: @escaping (T) -> ()) {
-        queue.async {
-            block(self.await())
-        }
+        promise.async(on: queue, { block($0!) })
     }
     
     public func put(_ value: T) {
@@ -195,7 +205,7 @@ public final class PromiseTry<T> {
     
     @discardableResult
     public func run() -> PromiseTry {
-        promise.run()
+        _ = promise.run(nil)
         return self
     }
     
@@ -221,9 +231,7 @@ public final class PromiseTry<T> {
     
     @discardableResult
     public func async(_ block: @escaping (T) throws -> ()) -> Async.Catch {
-        return Async.execute {
-            try block(self.await())
-        }
+        return async(on: promise.queue, block)
     }
     
     public func `do`(onSuccess: ((T) -> ())?, onError: ((Error) -> ())? = nil) -> PromiseTry<T> {
@@ -242,12 +250,13 @@ public final class PromiseTry<T> {
     public func async(on queue: DispatchQueue,_ block: @escaping (T) throws -> ()) -> Async.Catch {
         let handler = Async.Catch()
         handler.queue = queue
-        let completion: (T) -> () = { v in queue.async { try block(v) }.catch { e in handler.block?(e) } }
-        Async.execute {
-            let result = try self.await()
-            completion(result)
-        }.catch { error in
-            handler.block?(error)
+        promise.async(on: queue) {
+            do {
+                let result = try $0~!.get()
+                try block(result)
+            } catch {
+                handler.block?(error)
+            }
         }
         return handler
     }
