@@ -20,31 +20,31 @@ fileprivate final class Semaphore {
     
 }
 
-public final class PromiseBuilder<T> {
-    public let promise = Promise<T>()
+final class PromiseBuilder<T> {
+    let promise = Promise<T>()
     
-    public func put(_ value: T) {
+    func put(_ value: T) {
         promise.promise.put(value)
     }
     
 }
 
-public final class PromiseTryBuilder<T> {
-    public let promise = PromiseTry<T>()
+final class PromiseTryBuilder<T> {
+    let promise = PromiseTry<T>()
     
-    public func put(_ value: T) {
+    func put(_ value: T) {
         promise.promise.put(.success(value))
     }
     
-    public func `throw`(_ value: Error) {
+    func `throw`(_ value: Error) {
         promise.promise.put(.failure(value))
     }
     
-    public func put(_ value: Result<T, Error>) {
+    func put(_ value: Result<T, Error>) {
         promise.promise.put(value)
     }
     
-    public func put<E: Error>(_ value: Result<T, E>) {
+    func put<E: Error>(_ value: Result<T, E>) {
         promise.promise.put(value.mapError({ $0 as Error }))
     }
     

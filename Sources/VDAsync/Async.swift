@@ -31,11 +31,15 @@ public enum Async {
     }
     
     public static func promise<T>(_ block: (@escaping (T) -> ()) -> ()) -> Promise<T> {
-        let promise = PromiseBuilder<T>()
-        block {
-            promise.put($0)
-        }
-        return promise.promise
+        let builder = PromiseBuilder<T>()
+        block(builder.put)
+        return builder.promise
+    }
+    
+    public static func promise<T>(_ block: (_ success: @escaping (T) -> (), _ failure: @escaping (Error) -> ()) -> ()) -> PromiseTry<T> {
+        let builder = PromiseTryBuilder<T>()
+        block(builder.put, builder.throw)
+        return builder.promise
     }
     
     public static func promise<T>(_ block: (@escaping (T?, Error?) -> ()) -> ()) -> PromiseTry<T> {
