@@ -34,8 +34,8 @@ extension PromiseTry: PrimitiveSequenceType {
         return Single.create(subscribe: { event -> Disposable in
             Async.execute {
                 try event(.success(self.await()))
-                }.catch {
-                    event(.error($0))
+            }.catch {
+                event(.error($0))
             }
             return Disposables.create()
         })

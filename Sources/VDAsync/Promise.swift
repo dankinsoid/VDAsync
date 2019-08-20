@@ -256,7 +256,7 @@ public final class PromiseTry<T> {
     }
     
     @discardableResult
-    public func async(_ block: @escaping (T) throws -> ()) -> Async.Catch {
+    public func async(_ block: @escaping (T) throws -> ()) -> Async.Catch<Error> {
         return async(on: promise.queue, block)
     }
     
@@ -273,8 +273,8 @@ public final class PromiseTry<T> {
         }
     }
     
-    public func async(on queue: DispatchQueue,_ block: @escaping (T) throws -> ()) -> Async.Catch {
-        let handler = Async.Catch()
+    public func async(on queue: DispatchQueue,_ block: @escaping (T) throws -> ()) -> Async.Catch<Error> {
+        let handler = Async.Catch<Error>()
         handler.queue = queue
         promise.async(on: queue) {
             do {
@@ -288,7 +288,7 @@ public final class PromiseTry<T> {
     }
     
     @discardableResult
-    public func asyncOnMain(_ block: @escaping (T) throws -> ()) -> Async.Catch {
+    public func asyncOnMain(_ block: @escaping (T) throws -> ()) -> Async.Catch<Error> {
         return async(on: .main, block)
     }
     
