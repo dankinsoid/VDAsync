@@ -64,7 +64,7 @@ fileprivate final class AnyPromise<T> {
     
     init(_ block: @escaping () -> T) {
         self.block = block
-        queue = DispatchQueue.global(qos: .utility)
+        queue = DispatchQueue.global()
     }
     
     private init(on queue: DispatchQueue) {
@@ -73,7 +73,7 @@ fileprivate final class AnyPromise<T> {
     }
     
     init() {
-        queue = DispatchQueue.global(qos: .utility)
+        queue = DispatchQueue.global()
         block = nil
     }
     
@@ -113,20 +113,24 @@ fileprivate final class AnyPromise<T> {
     }
     
     public func async(on queue: DispatchQueue,_ block: @escaping (T?) -> ()) {
-        if run(queue.asyncBlock { block($0) }) {
+        if run(queue.asyncBlock(block)) {
             return
         }
-        queue.async {
+        Async.execute {
             let result = self.await()
-            block(result)
+            queue.async {
+                block(result)
+            }
         }
     }
     
     public func map<R>(_ transform: @escaping (T) -> R) -> AnyPromise<R> {
         let result = AnyPromise<R>(on: queue)
-        queue.async {
-            if let value = self.await() {
-                result.put(transform(value))
+        Async.execute {
+            let value = self.await()
+            if let val = value {
+                result.put(transform(val))
+                return
             }
             result.put(nil)
         }
@@ -135,11 +139,13 @@ fileprivate final class AnyPromise<T> {
     
     public func map<R>(_ transform: @escaping (T) throws -> R) -> AnyPromise<Result<R, Error>> {
         let result = AnyPromise<Result<R, Error>>(on: queue)
-        queue.async {
-            if let value = self.await() {
-                result.put(Result(catching: { try transform(value) } ))
+        Async.execute {
+            let value = self.await()
+            if let val = value {
+                result.put(Result(catching: { try transform(val) } ))
+                return
             }
-            result.put(nil)
+            result.put(.failure(OptionalException.noValue))
         }
         return result
     }

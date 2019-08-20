@@ -10,8 +10,8 @@ import Foundation
 extension DispatchQueue {
     
     @discardableResult
-    public func async(_ block: @escaping () throws -> ()) -> Async.Catch {
-        let catchError = Async.Catch()
+    public func async(_ block: @escaping () throws -> ()) -> Async.Catch<Error> {
+        let catchError = Async.Catch<Error>()
         self.async(execute: {
             do {
                 try block()
