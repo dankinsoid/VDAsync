@@ -83,12 +83,22 @@ extension Promise {
         return Promise<T> { fulfill, reject in
             self.then {
                 try fulfill(block($0))
-                }.catch(reject)
+            }.catch(reject)
         }
     }
     
     public func await() throws -> Value {
         return try Promises.await(self)
+    }
+    
+    public func `catch`(with value: Value) -> Promise<Value> {
+        return Promise<Value> { fulfill, reject in
+            self.then {
+                try fulfill(block($0))
+            }.catch { _ in
+                 fulfill(value)
+            }
+        }
     }
     
     //    public static func promise<T>(_ block: @escaping () throws -> T) -> Promise<T> {
