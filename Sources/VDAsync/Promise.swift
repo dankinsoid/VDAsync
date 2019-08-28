@@ -93,9 +93,7 @@ extension Promise {
     
     public func `catch`(with value: Value) -> Promise<Value> {
         return Promise<Value> { fulfill, reject in
-            self.then {
-                try fulfill(block($0))
-            }.catch { _ in
+            self.then(fulfill).catch { _ in
                  fulfill(value)
             }
         }
