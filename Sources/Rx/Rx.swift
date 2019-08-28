@@ -5,18 +5,17 @@
 //  Created by Daniil on 10.08.2019.
 //
 
+import Promises
 import RxSwift
 
-extension Promise: PrimitiveSequenceType {
+extension Promise {
     
-    public var primitiveSequence: PrimitiveSequence<SingleTrait, T> {
-        return asSingle().primitiveSequence
-    }
-    
-    public func asSingle() -> Single<T> {
-        return Single.create(subscribe: { event -> Disposable in
-            Async.execute {
-                event(.success(self.await()))
+    public func asSingle() -> Single<Value> {
+        return Single.create(subscribe: { block -> Disposable in
+            self.then {
+                block(.success($0))
+                }.catch {
+                    block(.error($0))
             }
             return Disposables.create()
         })
@@ -24,21 +23,22 @@ extension Promise: PrimitiveSequenceType {
     
 }
 
-extension PromiseTry: PrimitiveSequenceType {
+extension Single {
     
-    public var primitiveSequence: PrimitiveSequence<SingleTrait, T> {
-        return asSingle().primitiveSequence
-    }
-    
-    public func asSingle() -> Single<T> {
-        return Single.create(subscribe: { event -> Disposable in
-            Async.execute {
-                try event(.success(self.await()))
-            }.catch {
-                event(.error($0))
+    public func asPromise() -> Promise<Element> {
+        var disposeBag = DisposeBag()
+        return Promise { put, reject in
+            self.asObservable().subscribe(
+                onNext: {
+                    put($0)
+                    disposeBag = DisposeBag()
+            },
+                onError: {
+                    reject($0)
+                    disposeBag = DisposeBag()
             }
-            return Disposables.create()
-        })
+                ).disposed(by: disposeBag)
+        }
     }
     
 }
