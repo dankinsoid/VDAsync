@@ -79,6 +79,14 @@ extension Promise {
         }
     }
     
+    public func map<T>(_ block: @escaping (Value) throws -> T) -> Promise<T> {
+        return Promise<T> { fulfill, reject in
+            self.then {
+                try fulfill(block($0))
+                }.catch(reject)
+        }
+    }
+    
     public func await() throws -> Value {
         return try Promises.await(self)
     }
