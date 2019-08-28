@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 s.name             = 'VDAsync'
-s.version          = '0.16.0'
+s.version          = '0.17.0'
 s.summary          = 'A short description of VDAsync.'
 
 s.description      = <<-DESC
@@ -17,8 +17,8 @@ s.ios.deployment_target = '10.0'
 s.swift_versions = '5.0'
 s.source_files = 'Sources/VDAsync/**/*'
 
-s.dependency 'UnwrapOperator'
-s.dependency 'PromisesSwift'
+s.dependency 'UnwrapOperator', '~> 0.1.0'
+s.dependency 'PromisesSwift', '~> 1.2.8'
 
 s.default_subspec = 'Lite'
 
