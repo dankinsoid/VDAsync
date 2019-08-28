@@ -4,32 +4,32 @@ import Promises
 
 extension Promise {
     
-    public static func wrap<T, E: Error>(_ block: (@escaping (Result<T, E>) -> ()) -> ()) -> Promise<T> {
-        let promise = Promise<T>.pending()
+    public static func wrap<E: Error>(_ block: (@escaping (Result<Value, E>) -> ()) -> ()) -> Promise<Value> {
+        let promise = Promise<Value>.pending()
         block {
             promise.put($0)
         }
         return promise
     }
     
-    public static func wrap<T, E: Error, A>(_ block: (A, @escaping (Result<T,  E>) -> ()) -> (), _ value: A) -> Promise<T> {
+    public static func wrap<E: Error, A>(_ block: (A, @escaping (Result<Value,  E>) -> ()) -> (), _ value: A) -> Promise<Value> {
         return wrap { block(value, $0) }
     }
     
-    public static func wrap<T>(_ block: (@escaping (T) -> ()) -> ()) -> Promise<T> {
-        let promise = Promise<T>.pending()
+    public static func wrap(_ block: (@escaping (Value) -> ()) -> ()) -> Promise<Value> {
+        let promise = Promise<Value>.pending()
         block(promise.fulfill)
         return promise
     }
     
-    public static func wrap<T>(_ block: (_ success: @escaping (T) -> (), _ failure: @escaping (Error) -> ()) -> ()) -> Promise<T> {
-        let promise = Promise<T>.pending()
+    public static func wrap(_ block: (_ success: @escaping (Value) -> (), _ failure: @escaping (Error) -> ()) -> ()) -> Promise<Value> {
+        let promise = Promise<Value>.pending()
         block(promise.fulfill, promise.reject)
         return promise
     }
     
-    public static func wrap<T>(_ block: (@escaping (T?, Error?) -> ()) -> ()) -> Promise<T> {
-        let promise = Promise<T>.pending()
+    public static func wrap(_ block: (@escaping (Value?, Error?) -> ()) -> ()) -> Promise<Value> {
+        let promise = Promise<Value>.pending()
         block {
             if let result = $0 {
                 promise.fulfill(result)
@@ -42,31 +42,15 @@ extension Promise {
         return promise
     }
     
-    public static func wrap(_ block: (@escaping (Error?) -> ()) -> ()) -> Promise<Void> {
-        let promise = Promise<Void>.pending()
-        block {
-            if let error = $0 {
-                promise.reject(error)
-            } else {
-                promise.fulfill(())
-            }
-        }
-        return promise
-    }
-    
-    public static func wrap<A>(_ block: (A, @escaping (Error?) -> ()) -> (), _ first: A) -> Promise<Void> {
+    public static func wrap<A>(_ block: (A, @escaping (Value?, Error?) -> ()) -> (), _ first: A) -> Promise<Value> {
         return wrap({ block(first, $0) })
     }
     
-    public static func wrap<T, A>(_ block: (A, @escaping (T?, Error?) -> ()) -> (), _ first: A) -> Promise<T> {
-        return wrap({ block(first, $0) })
-    }
-    
-    public static func wrap<T, A, B>(_ block: (A, B, @escaping (T?, Error?) -> ()) -> (), _ first: A, _ second: B) -> Promise<T> {
+    public static func wrap<A, B>(_ block: (A, B, @escaping (Value?, Error?) -> ()) -> (), _ first: A, _ second: B) -> Promise<Value> {
         return wrap({ block(first, second, $0) })
     }
     
-    public static func wrap<T, A, B, C>(_ block: (A, B, C, @escaping (T?, Error?) -> ()) -> (), _ first: A, _ second: B, _ third: C) -> Promise<T> {
+    public static func wrap<A, B, C>(_ block: (A, B, C, @escaping (Value?, Error?) -> ()) -> (), _ first: A, _ second: B, _ third: C) -> Promise<Value> {
         return wrap({ block(first, second, third, $0) })
     }
     
@@ -76,14 +60,6 @@ extension Promise {
             fulfill(value)
         case .failure(let error):
             reject(error)
-        }
-    }
-    
-    public func map<T>(_ block: @escaping (Value) throws -> T) -> Promise<T> {
-        return Promise<T> { fulfill, reject in
-            self.then {
-                try fulfill(block($0))
-            }.catch(reject)
         }
     }
     
@@ -106,5 +82,25 @@ extension Promise {
     //    public static func promise<T>(_ block: @escaping () -> T) -> Promise<T> {
     //        return Promise(block)
     //    }
+    
+}
+
+extension Promise where Value == Void {
+    
+    public static func wrap(_ block: (@escaping (Error?) -> ()) -> ()) -> Promise<Void> {
+        let promise = Promise<Void>.pending()
+        block {
+            if let error = $0 {
+                promise.reject(error)
+            } else {
+                promise.fulfill(())
+            }
+        }
+        return promise
+    }
+    
+    public static func wrap<A>(_ block: (A, @escaping (Error?) -> ()) -> (), _ first: A) -> Promise<Void> {
+        return wrap({ block(first, $0) })
+    }
     
 }

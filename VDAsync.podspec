@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 s.name             = 'VDAsync'
-s.version          = '0.20.0'
+s.version          = '0.21.0'
 s.summary          = 'A short description of VDAsync.'
 
 s.description      = <<-DESC
