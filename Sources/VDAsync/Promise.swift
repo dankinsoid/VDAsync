@@ -1,5 +1,4 @@
 import Foundation
-import UnwrapOperator
 import Promises
 
 extension Promise {
@@ -33,10 +32,8 @@ extension Promise {
         block {
             if let result = $0 {
                 promise.fulfill(result)
-            } else if let error = $1 {
-                promise.reject(error)
             } else {
-                promise.reject(OptionalException.noValue)
+                promise.reject($1 ?? PromiseException.noValue)
             }
         }
         return promise
@@ -103,4 +100,8 @@ extension Promise where Value == Void {
         return wrap({ block(first, $0) })
     }
     
+}
+
+enum PromiseException: Error {
+    case noValue
 }
